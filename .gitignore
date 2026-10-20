@@ -1,0 +1,12 @@
+# HP's files, pulled from Apple's HP driver package by tools/fetch_hp_files.sh. Never commit.
+/hp/
+# build output (the compiled filter contains HP's halftone screens, so don't publish it either)
+/build/
+/dist/
+# test fixtures: rasters are huge and regenerable, refs are HP's own output
+/tests/ras/
+/tests/ref/
+/tests/in/*.pdf
+/tests/in/*.txt
+/tests/in/*.log
+.DS_Store

@@ -132,6 +132,20 @@ Enable two-sided printing as usual. The printer prints all back pages first, the
 
 The P1100 series has no Continue button. The only button is the power button, so don't press it during the pause, as that switches the printer off and the job is lost.
 
+## EconoMode
+
+EconoMode prints with less toner, which is useful for drafts. The page comes out lighter.
+
+To use it for one job, turn on EconoMode in the print dialog, under the printer's own options ("Printer Options", or "Printer Features" in the Layout dropdown on older macOS).
+
+From Terminal, find the queue name with `lpstat -p`, then:
+
+```
+lp -d QUEUE -o EconoMode=True file.pdf      # one job
+lpoptions -p QUEUE -o EconoMode=True        # on by default for every job
+lpoptions -p QUEUE -o EconoMode=False       # off again
+```
+
 ## Helper scripts
 
 After installation these are in `/Library/Printers/P1102Native/`:

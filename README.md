@@ -1,6 +1,6 @@
 # Native macOS driver for the HP LaserJet Professional P1100 series
 
-> **Note:** so far this has been verified on one printer only, a P1102 connected over USB. The other P1100 models should work the same way, but nobody has confirmed it yet. See [Supported printers](#supported-printers).
+> **Note:** so far this has been verified on two printers, a P1102 and a P1109, both connected over USB. The other P1100 models should work the same way, but nobody has confirmed it yet. See [Supported printers](#supported-printers).
 
 HP's macOS driver for the P1100 series (P1102, P1104, P1106, P1107, P1108, P1109) is an Intel-only binary. On Apple Silicon it only runs through Rosetta, and Apple is phasing Rosetta out after macOS 27. Once it's gone, the printer stops working even though the hardware is perfectly fine.
 
@@ -13,11 +13,12 @@ The output sent to the printer is byte for byte identical to what HP's original 
 | Printer | Status |
 |---|---|
 | HP LaserJet Professional **P1102** (USB) | Tested, works |
-| P1104, P1106, P1107, P1108, P1109 | Same driver and PPD in HP's package, should work, not tested yet |
+| HP LaserJet Professional **P1109** (USB) | Tested, works, including manual duplex ([#1](https://github.com/Pawlash/p1100-macos-driver/issues/1)) |
+| P1104, P1106, P1107, P1108 | Same driver and PPD in HP's package, should work, not tested yet |
 | P1102w and other "w" (Wi-Fi) models | HP uses a separate PPD for these, not generated here, unknown |
 | P1566, P1606dn | Different code path in HP's driver, not supported |
 
-Tested on macOS 27 on an Apple Silicon Mac.
+Tested on macOS 27 on Apple Silicon Macs.
 
 If you try it on another model, please open an issue using the "printer report" template, whether it works or not. I'll update the table.
 
@@ -127,7 +128,9 @@ For reference, `rastertozjs` itself is `be9415ca182fec58a17bea00603ff5591612d80b
 
 ## Manual duplex
 
-Enable two-sided printing as usual. The printer prints all back pages first, then pauses with the light blinking. Take the whole stack out of the output bin without turning it, put it back into the input tray printed side down, and the printer continues with the front pages.
+Enable two-sided printing as usual. The printer prints all back pages first, then pauses with the light blinking. Take the whole stack out of the output bin without turning it and put it back into the input tray printed side down. Then open and close the cartridge door, and the printer continues with the front pages.
+
+The P1100 series has no Continue button. The only button is the power button, so don't press it during the pause, as that switches the printer off and the job is lost.
 
 ## Helper scripts
 

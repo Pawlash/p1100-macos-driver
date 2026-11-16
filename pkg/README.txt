@@ -1,7 +1,7 @@
 Native driver for the HP LaserJet Professional P1100 series
 ===========================================================
 
-Verified on one printer only so far (a P1102 over USB).
+Verified so far on a P1102 and a P1109, both over USB.
 
 Runs natively on Apple Silicon and Intel, without Rosetta. It replaces HP's
 Intel-only "rastertozjs" filter and sends the printer exactly the same data as
@@ -21,8 +21,10 @@ blocks it, go to System Settings > Privacy & Security > "Open Anyway".
 Two-sided printing
 ------------------
 The printer prints the back pages first, then pauses with the light blinking.
-Take the stack out of the output bin without turning it, put it back into the
-input tray printed side down, and the printer continues with the front pages.
+Take the stack out of the output bin without turning it and put it back into
+the input tray printed side down. Then open and close the cartridge door, and
+the printer continues with the front pages. Don't press the power button
+during the pause: it switches the printer off and the job is lost.
 
 Helper scripts (in Terminal)
 ----------------------------

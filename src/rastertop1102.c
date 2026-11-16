@@ -644,16 +644,22 @@ typedef struct {
 } status_code_t;
 
 static const status_code_t status_codes[] = {
+    /* the P1100 series has no Continue button (the only button is power): closing the
+       cartridge door is what makes the printer resume after the duplex pause */
     {40120, 40121, "media-needed", "error",
      "Manual duplex: take the printed stack out of the output bin without turning it and "
-     "put it back into the input tray, printed side down.",
+     "put it back into the input tray, printed side down. Then open and close the "
+     "cartridge door to continue.",
      "Druk dwustronny: wyjmij zadrukowany stos z tacy odbiorczej, nie obracając go, i włóż "
-     "z powrotem do podajnika zadrukowaną stroną w dół."},
+     "z powrotem do podajnika zadrukowaną stroną w dół. Potem otwórz i zamknij klapkę "
+     "wkładu, żeby kontynuować."},
     {40131, 40131, "media-needed", "error",
      "Manual duplex: take the printed stack out of the output bin without turning it and "
-     "put it back into the input tray, printed side down.",
+     "put it back into the input tray, printed side down. Then open and close the "
+     "cartridge door to continue.",
      "Druk dwustronny: wyjmij zadrukowany stos z tacy odbiorczej, nie obracając go, i włóż "
-     "z powrotem do podajnika zadrukowaną stroną w dół."},
+     "z powrotem do podajnika zadrukowaną stroną w dół. Potem otwórz i zamknij klapkę "
+     "wkładu, żeby kontynuować."},
     {41100, 41199, "media-needed", "error",
      "Load paper into the input tray.",
      "Włóż papier do podajnika."},
@@ -957,7 +963,8 @@ int main(int argc, char **argv)
             for (int i = npages - 1; i >= 1; i -= 2)
                 copy_range(out, spool, pages[i].off, pages[i].len);
             fprintf(stderr, "INFO: Manual duplex: when the printer pauses, put the printed "
-                            "stack back in the tray printed side down and press the button\n");
+                            "stack back in the tray printed side down, then open and close "
+                            "the cartridge door\n");
             zjs_record(out, ZJT_PAUSE, NULL, 0, NULL, 0);
             for (int i = 0; i < npages; i += 2)
                 copy_range(out, spool, pages[i].off, pages[i].len);

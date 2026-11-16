@@ -432,6 +432,347 @@ static void write_job_end(FILE *f)
 }
 
 /* ---------------------------------------------------------------------------------------
+ * Localized messages
+ */
+
+/* Messages shown in the print queue, in the language CUPS passes in LANG (see
+   detect_lang()). A missing translation falls back to English.
+
+   Every language uses one fixed term for each part of the printer, the same in every
+   message, following HP's own wording where known (e.g. "maintaining the paper
+   orientation" for the duplex reload):
+
+         input tray           output bin         cartridge door           toner cartridge
+   PL    podajnik             taca odbiorcza     drzwiczki kasety z t.    kaseta z tonerem
+   DE    Zufuhrfach           Ausgabefach        Patronenklappe           Tonerpatrone
+   FR    bac d'alimentation   bac de sortie      porte de la cartouche    cartouche de toner
+   ES    bandeja de entrada   bandeja de salida  puerta del cartucho      cartucho de tóner
+   IT    vassoio di alim.     scomparto uscita   sportello cartuccia      cartuccia del toner
+   PT    bandeja de entrada   bandeja de saída   porta do cartucho        cartucho de toner
+   NL    invoerlade           uitvoerbak         klep van de cartridge    tonercartridge
+   RU    входной лоток        выходной лоток     дверца картриджа         картридж с тонером
+   JA    給紙トレイ           排紙トレイ         カートリッジドア         トナーカートリッジ
+   ZH-S  进纸盒               出纸槽             硒鼓仓门                 硒鼓
+   ZH-T  進紙匣               出紙槽             碳粉匣門                 碳粉匣
+   KO    입력 용지함          출력 용지함        카트리지 덮개            토너 카트리지
+
+   Problems are "Topic: what to do." sentences; progress messages have no final period. */
+enum { L_EN, L_PL, L_DE, L_FR, L_ES, L_IT, L_PT, L_NL, L_RU, L_JA, L_ZH_HANS, L_ZH_HANT,
+       L_KO, NLANG };
+typedef const char *msg_t[NLANG];
+
+/* the P1100 series has no Continue button (the only button is power): closing the
+   cartridge door is what makes the printer resume after the duplex pause */
+static const msg_t msg_duplex = {
+    [L_EN] = "Manual duplex: take the printed stack out of the output bin and, without changing "
+             "its orientation, put it into the input tray printed side down. Then open and close "
+             "the cartridge door to continue.",
+    [L_PL] = "Druk dwustronny: wyjmij zadrukowany stos z tacy odbiorczej i, nie zmieniając jego "
+             "ułożenia, włóż go do podajnika zadrukowaną stroną w dół. Potem otwórz i zamknij "
+             "drzwiczki kasety z tonerem, żeby kontynuować.",
+    [L_DE] = "Manueller Duplexdruck: Nehmen Sie den bedruckten Stapel aus dem Ausgabefach und "
+             "legen Sie ihn, ohne seine Ausrichtung zu ändern, mit der bedruckten Seite nach unten "
+             "in das Zufuhrfach. Öffnen und schließen Sie dann die Patronenklappe, um "
+             "fortzufahren.",
+    [L_FR] = "Recto verso manuel : retirez la pile imprimée du bac de sortie et, sans changer son "
+             "orientation, placez-la dans le bac d'alimentation, face imprimée vers le bas. "
+             "Ouvrez puis refermez ensuite la porte de la cartouche pour continuer.",
+    [L_ES] = "Dúplex manual: saque la pila impresa de la bandeja de salida y, sin cambiar su "
+             "orientación, colóquela en la bandeja de entrada con la cara impresa hacia abajo. "
+             "Después abra y cierre la puerta del cartucho para continuar.",
+    [L_IT] = "Fronte-retro manuale: estrai la pila stampata dallo scomparto di uscita e, senza "
+             "cambiarne l'orientamento, inseriscila nel vassoio di alimentazione con il lato "
+             "stampato rivolto verso il basso. Poi apri e chiudi lo sportello della cartuccia per "
+             "continuare.",
+    [L_PT] = "Duplex manual: retire a pilha impressa da bandeja de saída e, sem alterar a "
+             "orientação, coloque-a na bandeja de entrada com o lado impresso para baixo. Em "
+             "seguida, abra e feche a porta do cartucho para continuar.",
+    [L_NL] = "Handmatig dubbelzijdig: haal de bedrukte stapel uit de uitvoerbak en leg hem, "
+             "zonder de richting te veranderen, met de bedrukte kant naar beneden in de "
+             "invoerlade. Open en sluit daarna de klep van de cartridge om verder te gaan.",
+    [L_RU] = "Ручная двусторонняя печать: выньте отпечатанную стопку из выходного лотка и, не "
+             "меняя её ориентацию, положите во входной лоток отпечатанной стороной вниз. Затем "
+             "откройте и закройте дверцу картриджа, чтобы продолжить.",
+    [L_JA] = "手動両面印刷: 印刷済みの用紙の束を排紙トレイから取り出し、向きを変えずに、印刷面を"
+             "下にして給紙トレイにセットしてください。その後、カートリッジドアを開けて閉じると"
+             "印刷が続行されます。",
+    [L_ZH_HANS] = "手动双面打印：从出纸槽取出已打印的纸叠，保持纸张方向不变，请将打印面朝下放入"
+                  "进纸盒。然后打开并关闭硒鼓仓门以继续打印。",
+    [L_ZH_HANT] = "手動雙面列印：從出紙槽取出已列印的紙疊，保持紙張方向不變，請將列印面朝下放入"
+                  "進紙匣。然後打開並關閉碳粉匣門以繼續列印。",
+    [L_KO] = "수동 양면 인쇄: 출력 용지함에서 인쇄된 용지 묶음을 꺼내 방향을 바꾸지 말고 "
+             "인쇄면이 아래로 향하게 하여 입력 용지함에 넣으십시오. 그런 다음 카트리지 덮개를 "
+             "열었다 닫으면 인쇄가 계속됩니다.",
+};
+
+/* shown when a manual duplex job starts, before the printer pauses */
+static const msg_t msg_duplex_hint = {
+    [L_EN] = "Manual duplex: when the printer pauses, put the printed stack into the input tray "
+             "without changing its orientation, printed side down. Then open and close the "
+             "cartridge door.",
+    [L_PL] = "Druk dwustronny: gdy drukarka się zatrzyma, włóż zadrukowany stos do podajnika, nie "
+             "zmieniając jego ułożenia, zadrukowaną stroną w dół. Potem otwórz i zamknij "
+             "drzwiczki kasety z tonerem.",
+    [L_DE] = "Manueller Duplexdruck: Wenn der Drucker anhält, legen Sie den bedruckten Stapel, "
+             "ohne seine Ausrichtung zu ändern, mit der bedruckten Seite nach unten in das "
+             "Zufuhrfach. Öffnen und schließen Sie dann die Patronenklappe.",
+    [L_FR] = "Recto verso manuel : quand l'imprimante s'arrête, placez la pile imprimée dans le bac "
+             "d'alimentation sans changer son orientation, face imprimée vers le bas. Ouvrez puis "
+             "refermez ensuite la porte de la cartouche.",
+    [L_ES] = "Dúplex manual: cuando la impresora se detenga, coloque la pila impresa en la bandeja "
+             "de entrada sin cambiar su orientación, con la cara impresa hacia abajo. Después abra "
+             "y cierre la puerta del cartucho.",
+    [L_IT] = "Fronte-retro manuale: quando la stampante si ferma, inserisci la pila stampata nel "
+             "vassoio di alimentazione senza cambiarne l'orientamento, con il lato stampato "
+             "rivolto verso il basso. Poi apri e chiudi lo sportello della cartuccia.",
+    [L_PT] = "Duplex manual: quando a impressora pausar, coloque a pilha impressa na bandeja de "
+             "entrada sem alterar a orientação, com o lado impresso para baixo. Em seguida, abra e "
+             "feche a porta do cartucho.",
+    [L_NL] = "Handmatig dubbelzijdig: leg de bedrukte stapel, wanneer de printer pauzeert, zonder "
+             "de richting te veranderen met de bedrukte kant naar beneden in de invoerlade. Open "
+             "en sluit daarna de klep van de cartridge.",
+    [L_RU] = "Ручная двусторонняя печать: когда принтер остановится, положите отпечатанную стопку "
+             "во входной лоток, не меняя её ориентацию, отпечатанной стороной вниз. Затем "
+             "откройте и закройте дверцу картриджа.",
+    [L_JA] = "手動両面印刷: プリンタが一時停止したら、印刷済みの用紙の束を向きを変えずに、"
+             "印刷面を下にして給紙トレイにセットしてください。その後、カートリッジドアを開けて"
+             "閉じてください。",
+    [L_ZH_HANS] = "手动双面打印：打印机暂停后，保持纸张方向不变，请将已打印的纸叠打印面朝下放入"
+                  "进纸盒。然后打开并关闭硒鼓仓门。",
+    [L_ZH_HANT] = "手動雙面列印：印表機暫停後，保持紙張方向不變，請將已列印的紙疊列印面朝下放入"
+                  "進紙匣。然後打開並關閉碳粉匣門。",
+    [L_KO] = "수동 양면 인쇄: 프린터가 일시 정지하면 인쇄된 용지 묶음을 방향을 바꾸지 말고 "
+             "인쇄면이 아래로 향하게 하여 입력 용지함에 넣으십시오. 그런 다음 카트리지 덮개를 "
+             "열었다 닫으십시오.",
+};
+
+static const msg_t msg_load_paper = {
+    [L_EN] = "Load paper into the input tray.",
+    [L_PL] = "Włóż papier do podajnika.",
+    [L_DE] = "Legen Sie Papier in das Zufuhrfach ein.",
+    [L_FR] = "Chargez du papier dans le bac d'alimentation.",
+    [L_ES] = "Cargue papel en la bandeja de entrada.",
+    [L_IT] = "Carica la carta nel vassoio di alimentazione.",
+    [L_PT] = "Coloque papel na bandeja de entrada.",
+    [L_NL] = "Plaats papier in de invoerlade.",
+    [L_RU] = "Положите бумагу во входной лоток.",
+    [L_JA] = "給紙トレイに用紙をセットしてください。",
+    [L_ZH_HANS] = "请在进纸盒中放入纸张。",
+    [L_ZH_HANT] = "請在進紙匣中放入紙張。",
+    [L_KO] = "입력 용지함에 용지를 넣으십시오.",
+};
+
+static const msg_t msg_out_of_paper = {
+    [L_EN] = "Out of paper or the paper was not picked up: reload the paper in the input tray.",
+    [L_PL] = "Brak papieru lub papier nie został pobrany: włóż papier ponownie do podajnika.",
+    [L_DE] = "Kein Papier oder das Papier wurde nicht eingezogen: Legen Sie das Papier erneut in "
+             "das Zufuhrfach ein.",
+    [L_FR] = "Plus de papier ou le papier n'a pas été entraîné : rechargez le papier dans le bac "
+             "d'alimentation.",
+    [L_ES] = "Sin papel o el papel no se ha recogido: vuelva a cargar el papel en la bandeja de "
+             "entrada.",
+    [L_IT] = "Carta esaurita o non prelevata: ricarica la carta nel vassoio di alimentazione.",
+    [L_PT] = "Sem papel ou o papel não foi puxado: recoloque o papel na bandeja de entrada.",
+    [L_NL] = "Papier op of het papier wordt niet ingevoerd: plaats het papier opnieuw in de "
+             "invoerlade.",
+    [L_RU] = "Нет бумаги или бумага не захватывается: заново положите бумагу во входной лоток.",
+    [L_JA] = "用紙切れ、または用紙が給紙されません: 給紙トレイに用紙をセットし直してください。",
+    [L_ZH_HANS] = "缺纸或无法进纸：请将纸张重新放入进纸盒。",
+    [L_ZH_HANT] = "缺紙或無法進紙：請將紙張重新放入進紙匣。",
+    [L_KO] = "용지가 없거나 급지되지 않습니다: 입력 용지함에 용지를 다시 넣으십시오.",
+};
+
+static const msg_t msg_jam = {
+    [L_EN] = "Paper jam: open the cartridge door and remove the jammed paper.",
+    [L_PL] = "Zacięcie papieru: otwórz drzwiczki kasety z tonerem i wyjmij zacięty papier.",
+    [L_DE] = "Papierstau: Öffnen Sie die Patronenklappe und entfernen Sie das gestaute Papier.",
+    [L_FR] = "Bourrage papier : ouvrez la porte de la cartouche et retirez le papier coincé.",
+    [L_ES] = "Atasco de papel: abra la puerta del cartucho y retire el papel atascado.",
+    [L_IT] = "Inceppamento della carta: apri lo sportello della cartuccia e rimuovi la carta "
+             "inceppata.",
+    [L_PT] = "Atolamento de papel: abra a porta do cartucho e remova o papel atolado.",
+    [L_NL] = "Papierstoring: open de klep van de cartridge en verwijder het vastgelopen papier.",
+    [L_RU] = "Замятие бумаги: откройте дверцу картриджа и извлеките застрявшую бумагу.",
+    [L_JA] = "紙詰まり: カートリッジドアを開けて、詰まった用紙を取り除いてください。",
+    [L_ZH_HANS] = "卡纸：请打开硒鼓仓门并取出卡住的纸张。",
+    [L_ZH_HANT] = "卡紙：請打開碳粉匣門並取出卡住的紙張。",
+    [L_KO] = "용지 걸림: 카트리지 덮개를 열고 걸린 용지를 제거하십시오.",
+};
+
+static const msg_t msg_cover_open = {
+    [L_EN] = "The cartridge door is open or the toner cartridge is missing.",
+    [L_PL] = "Drzwiczki kasety z tonerem są otwarte albo brak kasety z tonerem.",
+    [L_DE] = "Die Patronenklappe ist offen oder die Tonerpatrone fehlt.",
+    [L_FR] = "La porte de la cartouche est ouverte ou la cartouche de toner est absente.",
+    [L_ES] = "La puerta del cartucho está abierta o falta el cartucho de tóner.",
+    [L_IT] = "Lo sportello della cartuccia è aperto o manca la cartuccia del toner.",
+    [L_PT] = "A porta do cartucho está aberta ou o cartucho de toner não está instalado.",
+    [L_NL] = "De klep van de cartridge is open of de tonercartridge ontbreekt.",
+    [L_RU] = "Дверца картриджа открыта или картридж с тонером отсутствует.",
+    [L_JA] = "カートリッジドアが開いているか、トナーカートリッジがありません。",
+    [L_ZH_HANS] = "硒鼓仓门已打开或未安装硒鼓。",
+    [L_ZH_HANT] = "碳粉匣門已打開或未安裝碳粉匣。",
+    [L_KO] = "카트리지 덮개가 열려 있거나 토너 카트리지가 없습니다.",
+};
+
+static const msg_t msg_no_toner = {
+    [L_EN] = "The toner cartridge is missing or not seated correctly.",
+    [L_PL] = "Brak kasety z tonerem albo jest źle włożona.",
+    [L_DE] = "Die Tonerpatrone fehlt oder ist nicht richtig eingesetzt.",
+    [L_FR] = "La cartouche de toner est absente ou mal installée.",
+    [L_ES] = "Falta el cartucho de tóner o no está bien colocado.",
+    [L_IT] = "La cartuccia del toner manca o non è inserita correttamente.",
+    [L_PT] = "O cartucho de toner não está instalado ou está mal encaixado.",
+    [L_NL] = "De tonercartridge ontbreekt of zit niet goed.",
+    [L_RU] = "Картридж с тонером отсутствует или установлен неправильно.",
+    [L_JA] = "トナーカートリッジがないか、正しく取り付けられていません。",
+    [L_ZH_HANS] = "未安装硒鼓或硒鼓未装好。",
+    [L_ZH_HANT] = "未安裝碳粉匣或碳粉匣未裝好。",
+    [L_KO] = "토너 카트리지가 없거나 제대로 장착되지 않았습니다.",
+};
+
+static const msg_t msg_toner_low = {
+    [L_EN] = "The toner is low.",
+    [L_PL] = "Kończy się toner.",
+    [L_DE] = "Der Toner ist fast leer.",
+    [L_FR] = "Le niveau de toner est bas.",
+    [L_ES] = "Queda poco tóner.",
+    [L_IT] = "Il toner sta per esaurirsi.",
+    [L_PT] = "O toner está acabando.",
+    [L_NL] = "De toner is bijna op.",
+    [L_RU] = "Заканчивается тонер.",
+    [L_JA] = "トナーが残り少なくなっています。",
+    [L_ZH_HANS] = "碳粉不足。",
+    [L_ZH_HANT] = "碳粉不足。",
+    [L_KO] = "토너가 부족합니다.",
+};
+
+static const msg_t msg_offline = {
+    [L_EN] = "The printer is offline.",
+    [L_PL] = "Drukarka jest offline.",
+    [L_DE] = "Der Drucker ist offline.",
+    [L_FR] = "L'imprimante est hors ligne.",
+    [L_ES] = "La impresora está fuera de línea.",
+    [L_IT] = "La stampante è offline.",
+    [L_PT] = "A impressora está offline.",
+    [L_NL] = "De printer is offline.",
+    [L_RU] = "Принтер не в сети.",
+    [L_JA] = "プリンタがオフラインです。",
+    [L_ZH_HANS] = "打印机处于脱机状态。",
+    [L_ZH_HANT] = "印表機處於離線狀態。",
+    [L_KO] = "프린터가 오프라인 상태입니다.",
+};
+
+/* printf format: %d is the printer's status code */
+static const msg_t msg_error = {
+    [L_EN] = "Printer error %d: turn the printer off and on again.",
+    [L_PL] = "Błąd drukarki %d: wyłącz i włącz ponownie drukarkę.",
+    [L_DE] = "Druckerfehler %d: Schalten Sie den Drucker aus und wieder ein.",
+    [L_FR] = "Erreur d'imprimante %d : éteignez puis rallumez l'imprimante.",
+    [L_ES] = "Error de impresora %d: apague la impresora y vuelva a encenderla.",
+    [L_IT] = "Errore della stampante %d: spegni e riaccendi la stampante.",
+    [L_PT] = "Erro da impressora %d: desligue e ligue novamente a impressora.",
+    [L_NL] = "Printerfout %d: zet de printer uit en weer aan.",
+    [L_RU] = "Ошибка принтера %d: выключите и снова включите принтер.",
+    [L_JA] = "プリンタエラー %d: プリンタの電源を切って入れ直してください。",
+    [L_ZH_HANS] = "打印机错误 %d：请关闭打印机电源后重新打开。",
+    [L_ZH_HANT] = "印表機錯誤 %d：請關閉印表機電源後重新開啟。",
+    [L_KO] = "프린터 오류 %d: 프린터를 껐다가 다시 켜십시오.",
+};
+
+static const msg_t msg_printing = {
+    [L_EN] = "Printing...",
+    [L_PL] = "Drukowanie...",
+    [L_DE] = "Drucken...",
+    [L_FR] = "Impression...",
+    [L_ES] = "Imprimiendo...",
+    [L_IT] = "Stampa in corso...",
+    [L_PT] = "Imprimindo...",
+    [L_NL] = "Bezig met afdrukken...",
+    [L_RU] = "Печать...",
+    [L_JA] = "印刷中...",
+    [L_ZH_HANS] = "正在打印...",
+    [L_ZH_HANT] = "正在列印...",
+    [L_KO] = "인쇄 중...",
+};
+
+/* printf format: %d is the page number */
+static const msg_t msg_printed_page = {
+    [L_EN] = "Printed page %d",
+    [L_PL] = "Wydrukowano stronę %d",
+    [L_DE] = "Seite %d gedruckt",
+    [L_FR] = "Page %d imprimée",
+    [L_ES] = "Página %d impresa",
+    [L_IT] = "Pagina %d stampata",
+    [L_PT] = "Página %d impressa",
+    [L_NL] = "Pagina %d afgedrukt",
+    [L_RU] = "Напечатана страница %d",
+    [L_JA] = "%d ページを印刷しました",
+    [L_ZH_HANS] = "已打印第 %d 页",
+    [L_ZH_HANT] = "已列印第 %d 頁",
+    [L_KO] = "%d페이지를 인쇄했습니다",
+};
+
+/* printf format: page number, then percent; every translation keeps that order */
+static const msg_t msg_page_progress = {
+    [L_EN] = "Printing page %d, %d%% complete...",
+    [L_PL] = "Drukowanie strony %d, ukończono %d%%...",
+    [L_DE] = "Seite %d wird gedruckt, %d%% abgeschlossen...",
+    [L_FR] = "Impression de la page %d, %d%% terminé...",
+    [L_ES] = "Imprimiendo página %d, %d%% completado...",
+    [L_IT] = "Stampa della pagina %d, %d%% completato...",
+    [L_PT] = "Imprimindo página %d, %d%% concluído...",
+    [L_NL] = "Bezig met afdrukken van pagina %d, %d%% voltooid...",
+    [L_RU] = "Печать страницы %d, выполнено %d%%...",
+    [L_JA] = "%d ページを印刷中、%d%% 完了...",
+    [L_ZH_HANS] = "正在打印第 %d 页，已完成 %d%%...",
+    [L_ZH_HANT] = "正在列印第 %d 頁，已完成 %d%%...",
+    [L_KO] = "%d페이지 인쇄 중, %d%% 완료...",
+};
+
+static int ui_lang = L_EN; /* L_*, set by status_start() */
+
+static const char *tr(const msg_t *m)
+{
+    const char *s = (*m)[ui_lang];
+    return s ? s : (*m)[L_EN];
+}
+
+/* Language of the status messages from LANG, which CUPS sets from the job's
+   natural language (e.g. "de_DE.UTF-8", "zh_TW.UTF-8", "pt-BR"). */
+static int detect_lang(void)
+{
+    static const struct {
+        const char *prefix;
+        int lang;
+    } map[] = {{"pl", L_PL}, {"de", L_DE}, {"fr", L_FR}, {"es", L_ES}, {"it", L_IT},
+               {"pt", L_PT}, {"nl", L_NL}, {"ru", L_RU}, {"ja", L_JA}, {"ko", L_KO}};
+    const char *lang = getenv("LANG");
+    if (!lang || strlen(lang) < 2 || (lang[2] && lang[2] != '_' && lang[2] != '-' &&
+                                      lang[2] != '.'))
+        return L_EN;
+    if (!strncasecmp(lang, "zh", 2)) {
+        /* Traditional for Taiwan, Hong Kong, Macau and explicit Hant, else Simplified */
+        static const char *const hant[] = {"hant", "tw", "hk", "mo"};
+        for (const char *p = lang + 2; *p && *p != '.' && *p != '@'; p++) {
+            if (*p != '_' && *p != '-')
+                continue;
+            for (size_t i = 0; i < sizeof(hant) / sizeof(hant[0]); i++) {
+                size_t n = strlen(hant[i]);
+                if (!strncasecmp(p + 1, hant[i], n) &&
+                    (!p[1 + n] || strchr("_-.@", p[1 + n])))
+                    return L_ZH_HANT;
+            }
+        }
+        return L_ZH_HANS;
+    }
+    for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++)
+        if (!strncasecmp(lang, map[i].prefix, 2))
+            return map[i].lang;
+    return L_EN;
+}
+
+/* ---------------------------------------------------------------------------------------
  * Page rendering: screening + JBIG + ZJS page records
  */
 
@@ -547,7 +888,9 @@ static int render_page(FILE *f, cups_raster_t *ras, const page_t *pg, int pageno
 
         int pct = (int)(100.0 * y / pg->height);
         if (pct / 10 != last_pct / 10) {
-            fprintf(stderr, "INFO: Printing page %d, %d%% complete...\n", pageno, pct);
+            fprintf(stderr, "INFO: ");
+            fprintf(stderr, tr(&msg_page_progress), pageno, pct);
+            fprintf(stderr, "\n");
             last_pct = pct;
         }
     }
@@ -640,53 +983,23 @@ typedef struct {
     int lo, hi;
     const char *reason;   /* IPP printer-state-reason without severity, NULL = none */
     const char *severity; /* "error" or "warning" */
-    const char *en, *pl;
+    const msg_t *msg;
 } status_code_t;
 
 static const status_code_t status_codes[] = {
-    /* the P1100 series has no Continue button (the only button is power): closing the
-       cartridge door is what makes the printer resume after the duplex pause */
-    {40120, 40121, "media-needed", "error",
-     "Manual duplex: take the printed stack out of the output bin without turning it and "
-     "put it back into the input tray, printed side down. Then open and close the "
-     "cartridge door to continue.",
-     "Druk dwustronny: wyjmij zadrukowany stos z tacy odbiorczej, nie obracając go, i włóż "
-     "z powrotem do podajnika zadrukowaną stroną w dół. Potem otwórz i zamknij klapkę "
-     "wkładu, żeby kontynuować."},
-    {40131, 40131, "media-needed", "error",
-     "Manual duplex: take the printed stack out of the output bin without turning it and "
-     "put it back into the input tray, printed side down. Then open and close the "
-     "cartridge door to continue.",
-     "Druk dwustronny: wyjmij zadrukowany stos z tacy odbiorczej, nie obracając go, i włóż "
-     "z powrotem do podajnika zadrukowaną stroną w dół. Potem otwórz i zamknij klapkę "
-     "wkładu, żeby kontynuować."},
-    {41100, 41199, "media-needed", "error",
-     "Load paper into the input tray.",
-     "Włóż papier do podajnika."},
-    {41000, 41999, "media-empty", "error",
-     "Out of paper or paper not picked up: reload the paper in the input tray.",
-     "Brak papieru lub drukarka nie może pobrać kartki: włóż papier ponownie do podajnika."},
-    {42000, 42999, "media-jam", "error",
-     "Paper jam: open the cartridge door and remove the jammed paper.",
-     "Zacięcie papieru: otwórz klapkę wkładu i wyjmij zaciętą kartkę."},
-    {40022, 40022, "media-jam", "error",
-     "Paper jam: open the cartridge door and remove the jammed paper.",
-     "Zacięcie papieru: otwórz klapkę wkładu i wyjmij zaciętą kartkę."},
-    {40021, 40021, "cover-open", "error",
-     "The cartridge door is open or the toner cartridge is missing.",
-     "Otwarta klapka albo brak wkładu z tonerem."},
-    {40010, 40010, "toner-empty", "error",
-     "Toner cartridge missing or not seated.",
-     "Brak wkładu z tonerem albo jest źle włożony."},
-    {40046, 40046, "toner-empty", "error",
-     "Toner cartridge missing or not seated.",
-     "Brak wkładu z tonerem albo jest źle włożony."},
-    {40038, 40038, "toner-low", "warning", "Toner is low.", "Kończy się toner."},
-    {10006, 10006, "toner-low", "warning", "Toner is low.", "Kończy się toner."},
-    {40079, 40079, "offline", "report", "The printer is offline.", "Drukarka jest offline."},
-    {50000, 59999, "other", "error",
-     "Printer error %d: turn the printer off and on again.",
-     "Błąd drukarki %d: wyłącz i włącz drukarkę."},
+    {40120, 40121, "media-needed", "error", &msg_duplex},
+    {40131, 40131, "media-needed", "error", &msg_duplex},
+    {41100, 41199, "media-needed", "error", &msg_load_paper},
+    {41000, 41999, "media-empty", "error", &msg_out_of_paper},
+    {42000, 42999, "media-jam", "error", &msg_jam},
+    {40022, 40022, "media-jam", "error", &msg_jam},
+    {40021, 40021, "cover-open", "error", &msg_cover_open},
+    {40010, 40010, "toner-empty", "error", &msg_no_toner},
+    {40046, 40046, "toner-empty", "error", &msg_no_toner},
+    {40038, 40038, "toner-low", "warning", &msg_toner_low},
+    {10006, 10006, "toner-low", "warning", &msg_toner_low},
+    {40079, 40079, "offline", "report", &msg_offline},
+    {50000, 59999, "other", "error", &msg_error},
 };
 
 static struct {
@@ -699,8 +1012,7 @@ static struct {
     time_t last_data;
     const status_code_t *cur; /* current problem shown to the user */
     int stop;
-    int polish;
-} st = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, 0, 0, 0, 0, NULL, 0, 0};
+} st = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, 0, 0, 0, 0, NULL, 0};
 
 static void set_problem(const status_code_t *sc, int code)
 {
@@ -713,10 +1025,10 @@ static void set_problem(const status_code_t *sc, int code)
     if (sc) {
         fprintf(stderr, "STATE: +%s-%s\n", sc->reason, sc->severity);
         fprintf(stderr, "INFO: ");
-        fprintf(stderr, st.polish ? sc->pl : sc->en, code);
+        fprintf(stderr, tr(sc->msg), code);
         fprintf(stderr, "\n");
     } else {
-        fprintf(stderr, "INFO: %s\n", st.polish ? "Drukowanie..." : "Printing...");
+        fprintf(stderr, "INFO: %s\n", tr(&msg_printing));
     }
 }
 
@@ -750,9 +1062,11 @@ static void handle_message(char *msg)
     if (strstr(msg, "USTATUS PAGE")) {
         const char *p = strstr(msg, "PAGE");
         p = p ? strpbrk(p + 4, "0123456789") : NULL;
-        if (p && !st.cur)
-            fprintf(stderr, st.polish ? "INFO: Wydrukowano stronę %d\n" : "INFO: Printed page %d\n",
-                    atoi(p));
+        if (p && !st.cur) {
+            fprintf(stderr, "INFO: ");
+            fprintf(stderr, tr(&msg_printed_page), atoi(p));
+            fprintf(stderr, "\n");
+        }
         return;
     }
     const char *c = strstr(msg, "CODE=");
@@ -827,8 +1141,7 @@ static void clear_reasons(void)
 
 static void status_start(void)
 {
-    const char *lang = getenv("LANG");
-    st.polish = lang && !strncmp(lang, "pl", 2);
+    ui_lang = detect_lang();
     clear_reasons();
     atexit(clear_reasons);
     struct stat sb;
@@ -962,9 +1275,7 @@ int main(int argc, char **argv)
                reload the stack, then the fronts (odd pages) first-to-last */
             for (int i = npages - 1; i >= 1; i -= 2)
                 copy_range(out, spool, pages[i].off, pages[i].len);
-            fprintf(stderr, "INFO: Manual duplex: when the printer pauses, put the printed "
-                            "stack back in the tray printed side down, then open and close "
-                            "the cartridge door\n");
+            fprintf(stderr, "INFO: %s\n", tr(&msg_duplex_hint));
             zjs_record(out, ZJT_PAUSE, NULL, 0, NULL, 0);
             for (int i = 0; i < npages; i += 2)
                 copy_range(out, spool, pages[i].off, pages[i].len);

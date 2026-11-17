@@ -36,7 +36,12 @@ fi
 
 echo "== PPD"
 python3 -I ppd/make_ppd.py "$HP/hp1100.ppd.gz" "$B/P1100-native.ppd"
-cupstestppd -W none "$B/P1100-native.ppd" 2>&1 | grep -E 'FAIL' | grep -vE 'Missing (cupsFilter|APPrinterIconPath) file|^.*: FAIL$' && exit 1 || true
+if [ -f "$HP/hp1100w.ppd.gz" ]; then
+    python3 -I ppd/make_ppd.py "$HP/hp1100w.ppd.gz" "$B/P1100w-native.ppd"
+fi
+for p in "$B"/P1100*-native.ppd; do
+    cupstestppd -W none "$p" 2>&1 | grep -E 'FAIL' | grep -vE 'Missing (cupsFilter|APPrinterIconPath) file|^.*: FAIL$' && exit 1 || true
+done
 
 echo "== package"
 ROOT="$B/root"
@@ -49,6 +54,9 @@ for s in use-hp-driver.sh use-native-driver.sh remove-hp-driver.sh uninstall.sh;
     install -m 755 "pkg/support/$s" "$ROOT/Library/Printers/P1102Native/"
 done
 gzip -9 -n -c "$B/P1100-native.ppd" > "$ROOT/Library/Printers/PPDs/Contents/Resources/HP LaserJet Professional P1100 Native.ppd.gz"
+if [ -f "$B/P1100w-native.ppd" ]; then
+    gzip -9 -n -c "$B/P1100w-native.ppd" > "$ROOT/Library/Printers/PPDs/Contents/Resources/HP LaserJet Professional P1100w Native.ppd.gz"
+fi
 chmod 644 "$ROOT/Library/Printers/PPDs/Contents/Resources/"*.gz
 chmod 755 pkg/scripts/postinstall
 xattr -cr "$ROOT"

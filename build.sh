@@ -13,8 +13,16 @@ mkdir -p "$B" dist
 
 HP=hp   # HP's files (screens, PPD, icon); local only, never committed
 if [ ! -f "$HP/sdtahs10.bin" ] || [ ! -f "$HP/sdtahr10.bin" ] || [ ! -f "$HP/hp1100.ppd.gz" ] || [ ! -f "$HP/hp1100.icns" ]; then
-    echo "== HP files (one-time download from Apple)"
+    echo "== HP files"
     tools/fetch_hp_files.sh "$HP"
+elif [ ! -f "$HP/hp1100w.ppd.gz" ]; then
+    # hp/ from before the "w" PPD existed: fetch again for it (from the installed HP driver
+    # when there is one, no download), but keep building without it if that fails
+    echo "== HP files (adding hp1100w.ppd.gz)"
+    tools/fetch_hp_files.sh "$HP" || true
+fi
+if [ ! -f "$HP/hp1100w.ppd.gz" ]; then
+    echo "warning: $HP/hp1100w.ppd.gz not found, the package will not have the P1100w PPD for the wireless models" >&2
 fi
 
 echo "== tables"
@@ -35,8 +43,14 @@ if want --test && [ -d tests/ref ]; then
 fi
 
 echo "== PPD"
+rm -f "$B"/P1100*-native.ppd   # no leftovers from an earlier build end up in the package
 python3 -I ppd/make_ppd.py "$HP/hp1100.ppd.gz" "$B/P1100-native.ppd"
-cupstestppd -W none "$B/P1100-native.ppd" 2>&1 | grep -E 'FAIL' | grep -vE 'Missing (cupsFilter|APPrinterIconPath) file|^.*: FAIL$' && exit 1 || true
+if [ -f "$HP/hp1100w.ppd.gz" ]; then
+    python3 -I ppd/make_ppd.py "$HP/hp1100w.ppd.gz" "$B/P1100w-native.ppd"
+fi
+for p in "$B"/P1100*-native.ppd; do
+    cupstestppd -W none "$p" 2>&1 | grep -E 'FAIL' | grep -vE 'Missing (cupsFilter|APPrinterIconPath) file|^.*: FAIL$' && exit 1 || true
+done
 
 echo "== package"
 ROOT="$B/root"
@@ -49,6 +63,9 @@ for s in use-hp-driver.sh use-native-driver.sh remove-hp-driver.sh uninstall.sh;
     install -m 755 "pkg/support/$s" "$ROOT/Library/Printers/P1102Native/"
 done
 gzip -9 -n -c "$B/P1100-native.ppd" > "$ROOT/Library/Printers/PPDs/Contents/Resources/HP LaserJet Professional P1100 Native.ppd.gz"
+if [ -f "$B/P1100w-native.ppd" ]; then
+    gzip -9 -n -c "$B/P1100w-native.ppd" > "$ROOT/Library/Printers/PPDs/Contents/Resources/HP LaserJet Professional P1100w Native.ppd.gz"
+fi
 chmod 644 "$ROOT/Library/Printers/PPDs/Contents/Resources/"*.gz
 chmod 755 pkg/scripts/postinstall
 xattr -cr "$ROOT"

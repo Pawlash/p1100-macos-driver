@@ -3,16 +3,32 @@
 #   sudo /Library/Printers/P1102Native/use-native-driver.sh
 if [ "$(id -u)" != 0 ]; then exec sudo "$0" "$@"; fi
 PPDGZ="/Library/Printers/PPDs/Contents/Resources/HP LaserJet Professional P1100 Native.ppd.gz"
+PPDGZ_W="/Library/Printers/PPDs/Contents/Resources/HP LaserJet Professional P1100w Native.ppd.gz"
 TMPPPD=$(mktemp /tmp/p1102native.XXXXXX) || exit 1
+TMPPPD_W=$(mktemp /tmp/p1102nativew.XXXXXX) || exit 1
 gunzip -c "$PPDGZ" > "$TMPPPD"
+[ -f "$PPDGZ_W" ] && gunzip -c "$PPDGZ_W" > "$TMPPPD_W"
+
+is_w_ppd() {
+    grep -qE '^\*(ModelName: "HP LaserJet Professional P1100w|PCFileName: "(hp1100w|N1100W)\.PPD")' "$1"
+}
+
+native_ppd_for() { # queue PPD -> native PPD to use
+    if is_w_ppd "$1" && [ -s "$TMPPPD_W" ]; then
+        echo "$TMPPPD_W"
+    else
+        echo "$TMPPPD"
+    fi
+}
+
 found=0
 for f in /etc/cups/ppd/*.ppd; do
     [ -f "$f" ] || continue
-    grep -qE '^\*ModelName: "HP LaserJet Professional P1100( Native)?"' "$f" || continue
+    grep -qE '^\*ModelName: "HP LaserJet Professional P1100w?( Native)?"' "$f" || continue
     q=$(basename "$f" .ppd)
     echo "Switching queue $q to the native driver"
-    /usr/sbin/lpadmin -p "$q" -P "$TMPPPD" && /usr/sbin/lpadmin -p "$q" -o PageSize=A4 -o PageRegion=A4 -o InputSlot=Auto -o printer-error-policy=retry-job
+    /usr/sbin/lpadmin -p "$q" -P "$(native_ppd_for "$f")" && /usr/sbin/lpadmin -p "$q" -o PageSize=A4 -o PageRegion=A4 -o InputSlot=Auto -o printer-error-policy=retry-job
     found=1
 done
-rm -f "$TMPPPD"
+rm -f "$TMPPPD" "$TMPPPD_W"
 [ $found = 1 ] || echo "No P1100-series queue found. Add the printer in System Settings > Printers & Scanners; macOS will pick 'HP LaserJet Professional P1100, native driver'."

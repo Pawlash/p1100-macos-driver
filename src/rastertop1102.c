@@ -588,8 +588,8 @@ static const msg_t msg_jam = {
     [L_DE] = "Papierstau: Öffnen Sie die Patronenklappe und entfernen Sie das gestaute Papier.",
     [L_FR] = "Bourrage papier : ouvrez la porte de la cartouche et retirez le papier coincé.",
     [L_ES] = "Atasco de papel: abra la puerta del cartucho y retire el papel atascado.",
-    [L_IT] = "Inceppamento della carta: apri lo sportello della cartuccia e rimuovi la carta "
-             "inceppata.",
+    [L_IT] = ("Inceppamento della carta: apri lo sportello della cartuccia e rimuovi la carta "
+              "inceppata."),
     [L_PT] = "Atolamento de papel: abra a porta do cartucho e remova o papel atolado.",
     [L_NL] = "Papierstoring: open de klep van de cartridge en verwijder het vastgelopen papier.",
     [L_RU] = "Замятие бумаги: откройте дверцу картриджа и извлеките застрявшую бумагу.",

@@ -1,34 +1,51 @@
 #!/bin/sh
 # Switch every existing P1100-series queue that uses HP's x86 driver to the native one.
-# The old PPD is kept so use-hp-driver.sh can switch back.
+# Queues that already use the native driver are refreshed with the matching PPD (P1100 or
+# P1100w). The old PPD is kept so use-hp-driver.sh can switch back.
 DIR=/Library/Printers/P1102Native
 PPDGZ="/Library/Printers/PPDs/Contents/Resources/HP LaserJet Professional P1100 Native.ppd.gz"
+PPDGZ_W="/Library/Printers/PPDs/Contents/Resources/HP LaserJet Professional P1100w Native.ppd.gz"
 BACKUP="$DIR/backup"
 mkdir -p "$BACKUP"
 chmod 755 "$BACKUP"
 
 TMPPPD=$(mktemp /tmp/p1102native.XXXXXX) || exit 0
+TMPPPD_W=$(mktemp /tmp/p1102nativew.XXXXXX) || exit 0
 gunzip -c "$PPDGZ" > "$TMPPPD"
+[ -f "$PPDGZ_W" ] && gunzip -c "$PPDGZ_W" > "$TMPPPD_W"
+
+# HP ships a separate PPD for the wireless "w" models (P1102w, P1109w, ...).
+is_w_ppd() {
+    grep -qE '^\*(ModelName: "HP LaserJet Professional P1100w|PCFileName: "(hp1100w|N1100W)\.PPD")' "$1"
+}
+
+native_ppd_for() { # queue PPD -> native PPD to use
+    if is_w_ppd "$1" && [ -s "$TMPPPD_W" ]; then
+        echo "$TMPPPD_W"
+    else
+        echo "$TMPPPD"
+    fi
+}
 
 for f in /etc/cups/ppd/*.ppd; do
     [ -f "$f" ] || continue
     q=$(basename "$f" .ppd)
-    if grep -q '^\*ModelName: "HP LaserJet Professional P1100 Native"' "$f"; then
+    if grep -qE '^\*ModelName: "HP LaserJet Professional P1100w? Native"' "$f"; then
         # upgrade: refresh the PPD, CUPS keeps the user's defaults
         echo "Updating queue $q"
-        /usr/sbin/lpadmin -p "$q" -P "$TMPPPD"
+        /usr/sbin/lpadmin -p "$q" -P "$(native_ppd_for "$f")"
         # when the printer runs out of paper the USB backend gives up; retry the job later
         # instead of pausing the whole queue
         /usr/sbin/lpadmin -p "$q" -o printer-error-policy=retry-job
         continue
     fi
-    grep -q '^\*ModelName: "HP LaserJet Professional P1100"' "$f" || continue
+    grep -qE '^\*ModelName: "HP LaserJet Professional P1100w?"' "$f" || continue
     grep -q 'p1100_1560_1600series/hpRaster.bundle/Contents/MacOS/rastertozjs' "$f" || continue
     [ -f "$BACKUP/$q.ppd" ] || cp "$f" "$BACKUP/$q.ppd"
     echo "Switching queue $q to the native driver"
-    /usr/sbin/lpadmin -p "$q" -P "$TMPPPD"
+    /usr/sbin/lpadmin -p "$q" -P "$(native_ppd_for "$f")"
     # CUPS carries old defaults over to the new PPD; set ours explicitly
     /usr/sbin/lpadmin -p "$q" -o PageSize=A4 -o PageRegion=A4 -o InputSlot=Auto -o printer-error-policy=retry-job
 done
-rm -f "$TMPPPD"
+rm -f "$TMPPPD" "$TMPPPD_W"
 exit 0

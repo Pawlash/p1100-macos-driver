@@ -10,7 +10,8 @@ else
     users=$(grep -l "$DIR/rastertop1102" /etc/cups/ppd/*.ppd 2>/dev/null)
     [ -n "$users" ] && echo "Warning: these queues will have no driver: $(for f in $users; do basename "$f" .ppd; done | tr '\n' ' ')"
 fi
-rm -f "/Library/Printers/PPDs/Contents/Resources/HP LaserJet Professional P1100 Native.ppd.gz"
+rm -f "/Library/Printers/PPDs/Contents/Resources/HP LaserJet Professional P1100 Native.ppd.gz" \
+      "/Library/Printers/PPDs/Contents/Resources/HP LaserJet Professional P1100w Native.ppd.gz"
 rm -rf "$DIR"
 pkgutil --forget local.p1102native.driver >/dev/null 2>&1
 echo "Native P1100 driver removed."

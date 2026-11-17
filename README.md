@@ -1,6 +1,6 @@
 # Native macOS driver for the HP LaserJet Professional P1100 series
 
-> **Note:** so far this has been verified on two printers, a P1102 and a P1109, both connected over USB. The other P1100 models should work the same way, but nobody has confirmed it yet. See [Supported printers](#supported-printers).
+> **Note:** verified on a P1102 and a P1109 over USB, and on a P1109w over Wi-Fi (raw `pdl-datastream`). The other P1100 models should work the same way, but nobody has confirmed it yet. See [Supported printers](#supported-printers).
 
 HP's macOS driver for the P1100 series (P1102, P1104, P1106, P1107, P1108, P1109) is an Intel-only binary. On Apple Silicon it only runs through Rosetta, and Apple is phasing Rosetta out after macOS 27. Once it's gone, the printer stops working even though the hardware is perfectly fine.
 
@@ -14,8 +14,9 @@ The output sent to the printer is byte for byte identical to what HP's original 
 |---|---|
 | HP LaserJet Professional **P1102** (USB) | Tested, works |
 | HP LaserJet Professional **P1109** (USB) | Tested, works, including manual duplex ([#1](https://github.com/Pawlash/p1100-macos-driver/issues/1)) |
+| HP LaserJet Professional **P1109w** (Wi-Fi) | Tested, works, including manual duplex |
 | P1104, P1106, P1107, P1108 | Same driver and PPD in HP's package, should work, not tested yet |
-| P1102w and other "w" (Wi-Fi) models | HP uses a separate PPD for these, not generated here, unknown |
+| P1102w and other "w" (Wi-Fi) models | HP uses a separate PPD, now generated from `hp1100w.ppd.gz`; not tested yet |
 | P1566, P1606dn | Different code path in HP's driver, not supported |
 
 Tested on macOS 27 on Apple Silicon Macs.
@@ -52,13 +53,16 @@ The installer is not signed with an Apple developer certificate. If macOS blocks
 
 ## Where the HP files come from
 
-`./build.sh` runs `tools/fetch_hp_files.sh`. It downloads Apple's official "HP Printer Drivers" package, unpacks it into a temporary folder (nothing is installed and Rosetta is not needed) and copies these files into `hp/`:
+`./build.sh` runs `tools/fetch_hp_files.sh`. If HP's 5.1.1 driver is already installed on the Mac (it is, as long as the printer still works the old way), the script copies the files straight from there, so nothing gets downloaded. Otherwise it downloads Apple's official "HP Printer Drivers" package and unpacks it into a temporary folder (nothing is installed and Rosetta is not needed). Either way it copies these files into `hp/`:
 
 | File | Contents |
 |---|---|
 | `sdtahs10.bin`, `sdtahr10.bin` | The two halftone screens, taken from `rastertozjs` |
 | `hp1100.ppd.gz` | HP's PPD, converted into this driver's PPD |
+| `hp1100w.ppd.gz` | HP's PPD for the wireless "w" models (P1102w, P1109w, ...), same conversion |
 | `hp1100.icns` | The printer icon |
+
+If HP's driver is installed somewhere unusual, point the script at it with `HP_BIN` (the `rastertozjs` binary) and, if needed, `HP_PPDDIR` (the folder with the HP PPDs) and `HP_ICON` (the icon file).
 
 The package:
 
@@ -101,7 +105,7 @@ BIN=$P/hp/laserjet/p1100_1560_1600series/hpRaster.bundle/Contents/MacOS/rasterto
 mkdir -p hp
 dd if=$BIN of=hp/sdtahs10.bin bs=1 skip=$((0x45940)) count=12288
 dd if=$BIN of=hp/sdtahr10.bin bs=1 skip=$((0x42940)) count=12288
-cp $P/PPDs/Contents/Resources/hp1100.ppd.gz $P/hp/Icons/hp1100.icns hp/
+cp $P/PPDs/Contents/Resources/hp1100.ppd.gz $P/PPDs/Contents/Resources/hp1100w.ppd.gz $P/hp/Icons/hp1100.icns hp/
 shasum -a 256 hp/*
 ```
 
@@ -110,9 +114,12 @@ Expected hashes:
 ```
 4e57aeadfc9fd130ddadd2b9049c78f05a4ab35cd725f55db016cd5c1d4a5b50  hp/hp1100.icns
 44e5ccb4e16a65fdc0f85fb50e391c3ea9cd3131abc1b6ebcf5acec206478d4c  hp/hp1100.ppd.gz
+fef4e6736df707c4971c33243df74584d6bd432e7e651c9d75a7ed701b317e25  hp/hp1100w.ppd.gz
 bee7e551104522f1ccb70f9d1808103d203bc9d97c4f2d1d38e6ffda3d6e2e51  hp/sdtahr10.bin
 efa8a8e8c49da4f6383e20b8cd3187327f4be325dc888956aa631d61bed44cce  hp/sdtahs10.bin
 ```
+
+`hp1100w.ppd.gz` is optional: without it the build only produces the PPD for the USB models. Add the wireless one with `cp /Library/Printers/PPDs/Contents/Resources/hp1100w.ppd.gz hp/` if HP's driver is already installed.
 
 For reference, `rastertozjs` itself is `be9415ca182fec58a17bea00603ff5591612d80b391299e307676c870eea0ca9`. After that, run `./build.sh`. It finds the files in `hp/` and skips the download. On macOS 27, hdiutil shows a deprecation warning for `-mountpoint`. It still works, or you can use `diskutil image attach --readOnly --mountPoint mnt ...` instead.
 
